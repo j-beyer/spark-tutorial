@@ -25,35 +25,7 @@ object SimpleSpark extends App {
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
 
-    //------------------------------------------------------------------------------------------------------------------
-    // Lamda basics (for Scala)
-    //------------------------------------------------------------------------------------------------------------------
 
-//    //spark uses user defined functions to transform data, lets first look at how functions are defined in scala:
-//    val smallListOfNumbers = List(1, 2, 3, 4, 5)
-//    // A Scala map function from int to double
-//    def squareAndAdd(i: Int): Double = {
-//      i * 2 + 0.5
-//    }
-//    // A Scala map function defined in-line (without curly brackets)
-//    def squareAndAdd2(i: Int): Double = i * 2 + 0.5
-//    // A Scala map function inferring the return type
-//    def squareAndAdd3(i: Int) = i * 2 + 0.5
-//    // An anonymous Scala map function assigned to a variable
-//    val squareAndAddFunction = (i: Int) => i * 2 + 0.5
-//
-//    println("--------------------------------------------------------------------------------------------------------------")
-//
-//    // Different variants to apply the same function
-//    println(smallListOfNumbers.map(squareAndAdd))
-//    println(smallListOfNumbers.map(squareAndAdd2))
-//    println(smallListOfNumbers.map(squareAndAdd3))
-//    println(smallListOfNumbers.map(squareAndAddFunction))
-//    println(smallListOfNumbers.map(i => i * 2 + 0.5)) // anonymous function; compiler can infers types
-//    println(smallListOfNumbers.map(_ * 2 + 0.5)) // syntactic sugar: '_' maps to first (second, third, ...) parameter
-//
-//    println("--------------------------------------------------------------------------------------------------------------")
-//
     //------------------------------------------------------------------------------------------------------------------
     // Setting up a Spark Session
     //------------------------------------------------------------------------------------------------------------------
@@ -72,53 +44,6 @@ object SimpleSpark extends App {
 
     println("--------------------------------------------------------------------------------------------------------------")
 
-    //------------------------------------------------------------------------------------------------------------------
-    // Loading data
-    //------------------------------------------------------------------------------------------------------------------
-//
-//    // Create a Dataset programmatically
-//    val numbers = spark.createDataset((0 until 100).toList)
-//
-//    // Read a Dataset from a file
-//    val employees = spark.read
-//      .option("inferSchema", "true")
-//      .option("header", "true")
-//      .csv("data/employees.csv") // also text, json, jdbc, parquet
-//      .as[(String, Int, Double, String)]
-//
-//    println("--------------------------------------------------------------------------------------------------------------")
-//
-//    // Read a Dataset from a database: (requires a database being setup as well as driver class in maven)
-////    val top_templates = spark.sqlContext.read.format("jdbc")
-////      .option("url", "jdbc:postgresql://localhost/changedb")
-////      .option("driver", "org.postgresql.Driver")
-////      .option("useUnicode", "true")
-////      .option("useSSL", "false")
-////      .option("user", "dummy")
-////      .option("password", "dummy")
-////      .option("dbtable","templates_infoboxes")
-////      .load()
-//
-//    //------------------------------------------------------------------------------------------------------------------
-//    // Basic transformations
-//    //------------------------------------------------------------------------------------------------------------------
-//
-//    // Basic transformations on datasets return new datasets
-//    val mapped = numbers.map(i => "This is a number: " + i)
-//    val filtered = mapped.filter(s => s.contains("1"))
-//    val sorted = filtered.sort()
-//    List(numbers, mapped, filtered, sorted).foreach(dataset => println(dataset.getClass))
-//    sorted.show()
-//
-//    println("--------------------------------------------------------------------------------------------------------------")
-//
-//    // Basic terminal operations
-//    val collected = filtered.collect() // collects the entire dataset to the driver process
-//    val reduced = filtered.reduce((s1, s2) => s1 + "," + s2) // reduces all values successively to one
-//    filtered.foreach(s => println(s)) // performs an action for each element (take care where the action is evaluated!)
-//    List(collected, reduced).foreach(result => println(result.getClass))
-//
-//    println("--------------------------------------------------------------------------------------------------------------")
 //
 //    // DataFrame and Dataset
 //    val untypedDF = numbers.toDF() // DS to DF
@@ -126,14 +51,6 @@ object SimpleSpark extends App {
 //    val integerTypedDS = untypedDF.as[Int] // DF to DS via as() function that cast columns to a concrete types
 //    List(untypedDF, stringTypedDS, integerTypedDS).foreach(result => println(result.head.getClass))
 //    List(untypedDF, stringTypedDS, integerTypedDS).foreach(result => println(result.head))
-//
-//    println("--------------------------------------------------------------------------------------------------------------")
-//
-//    // Mapping to tuples
-//    numbers
-//      .map(i => (i, "nonce", 3.1415, true))
-//      .take(10)
-//      .foreach(println(_))
 //
 //    println("--------------------------------------------------------------------------------------------------------------")
 //
@@ -364,43 +281,74 @@ object SimpleSpark extends App {
       .option("inferSchema", "true")
       .option("header", "true")
       .option("sep", ";")
-      .csv("data/tpch_region.csv")
+      .csv("TPCH/tpch_region.csv")
       .as[(String, String, String)]
 
     val nation = spark.read
       .option("inferSchema", "true")
       .option("header", "true")
       .option("sep", ";")
-      .csv("data/tpch_nation.csv")
+      .csv("TPCH/tpch_nation.csv")
       .as[(String, String, String, String)]
 
     val regionkey = region.columns(0)
     val name = region.columns(1)
     val comment = region.columns(2)
 
-    region
-      .flatMap(tuple =>
-        List(
-          tuple._1->Seq(regionkey),
-          tuple._2->Seq(name),
-          tuple._3->Seq(comment))
-      )
-      .groupByKey(value => value)
-      .reduceGroups((cell1, cell2) => {
-        var seq = Seq[String]()
-        seq ++= cell1._2
-        seq ++= cell2._2
-        cell1._1 -> seq
-      })
-      .foreach(println(_))
+    val nation_nationkey = nation.columns(0)
+    val nation_name = nation.columns(1)
+    val nation_regionkey = nation.columns(2)
+    val nation_comment = nation.columns(3)
 
-//    region.createOrReplaceTempView("region")
-//    nation.createOrReplaceTempView("nation")
-//    val fullOuterJoin = spark.sql("SELECT * FROM region FULL OUTER JOIN nation")
-//    fullOuterJoin.columns.foreach(println(_))
-//    fullOuterJoin
-//      .as[(String, String, String, String, String, String, String)]
-//      .show()
+    nation
+
+      // split records, create cells
+      .flatMap(tuple =>
+        Seq(
+          tuple._1->Seq(nation_nationkey),
+          tuple._2->Seq(nation_name),
+          tuple._3->Seq(nation_regionkey),
+          tuple._4->Seq(nation_comment))
+      )
+
+      // preaggregation, concat column title for same value
+      .groupByKey(value => value._1)
+      .reduceGroups((cell1, cell2) => (cell1._1, cell1._2 ++ cell2._2))
+      .map(_._2)
+      .map(pair => (pair._1, pair._2.distinct))
+      // TODO partition / distribute .repartition() ?
+
+      // generate attribute sets
+      .groupByKey(value => value._1)
+      .reduceGroups((cell1, cell2) => (cell1._1, cell1._2 ++ cell2._2))
+      .map(_._2)
+      .map(pair => pair._2.distinct)
+      .distinct()
+
+      // generate inclusion lists
+      .flatMap(attributeSet => {
+          val set = attributeSet.toSet
+          set.map(el => (el, (set - el).toSeq)).toSeq
+      })
+
+      // redistribute
+
+      // aggregate, i.e., intersect inclusion list values
+      .groupByKey(value => value._1)
+      .reduceGroups((cell1, cell2) => (cell1._1, cell1._2.toSet.intersect(cell2._2.toSet).toSeq))
+      .map(_._2)
+
+      // remove empty sets
+      .filter(_._2.nonEmpty)
+
+      // split into INDs
+      .foreach(pair => {
+        print(pair._1)
+        print(" < ")
+        print(pair._2.mkString(", "))
+      })
+
+      // return output
 
   }
 
