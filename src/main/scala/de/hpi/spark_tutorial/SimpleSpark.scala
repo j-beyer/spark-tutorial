@@ -281,14 +281,14 @@ object SimpleSpark extends App {
       .option("inferSchema", "true")
       .option("header", "true")
       .option("sep", ";")
-      .csv("TPCH/tpch_region.csv")
+      .csv("data/tpch_region.csv")
       .as[(String, String, String)]
 
     val nation = spark.read
       .option("inferSchema", "true")
       .option("header", "true")
       .option("sep", ";")
-      .csv("TPCH/tpch_nation.csv")
+      .csv("data/tpch_nation.csv")
       .as[(String, String, String, String)]
 
     val regionkey = region.columns(0)
@@ -300,16 +300,23 @@ object SimpleSpark extends App {
     val nation_regionkey = nation.columns(2)
     val nation_comment = nation.columns(3)
 
-    nation
-
-      // split records, create cells
-      .flatMap(tuple =>
+    val region_tuples = region
+      .flatMap(tuple2 =>
         Seq(
-          tuple._1->Seq(nation_nationkey),
-          tuple._2->Seq(nation_name),
-          tuple._3->Seq(nation_regionkey),
-          tuple._4->Seq(nation_comment))
+          tuple2._1->Seq(regionkey),
+          tuple2._2->Seq(name),
+          tuple2._3->Seq(comment))
       )
+
+    (nation
+      // split records, create cells
+      .flatMap(tuple1 =>
+        Seq(
+          tuple1._1->Seq(nation_nationkey),
+          tuple1._2->Seq(nation_name),
+          tuple1._3->Seq(nation_regionkey),
+          tuple1._4->Seq(nation_comment))
+      ) union region_tuples)
 
       // preaggregation, concat column title for same value
       .groupByKey(value => value._1)
@@ -343,9 +350,7 @@ object SimpleSpark extends App {
 
       // split into INDs
       .foreach(pair => {
-        print(pair._1)
-        print(" < ")
-        print(pair._2.mkString(", "))
+        println(pair._1 + " < " + pair._2.mkString(", "))
       })
 
       // return output
