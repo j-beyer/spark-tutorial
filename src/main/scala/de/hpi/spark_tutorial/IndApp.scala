@@ -1,8 +1,12 @@
 package de.hpi.spark_tutorial
 
+import java.io.File
+
 import com.beust.jcommander.{JCommander, Parameter, ParameterException}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
+
+import scala.collection.mutable.ListBuffer
 
 
 object IndApp extends App {
@@ -20,7 +24,7 @@ object IndApp extends App {
       System.exit(1)
   }
 
-  main.run()
+  indApp.run()
 }
 
 class IndApp {
@@ -45,6 +49,8 @@ class IndApp {
       // local, with 4 worker cores
       .master(s"local[$numCores]")
     val spark = sparkBuilder.getOrCreate()
+
+    spark.sparkContext.setLogLevel("OFF")
 
     // Set the default number of shuffle partitions to 5 (default is 200, which is too high for local deployment)
     spark.conf.set("spark.sql.shuffle.partitions", "5") //
@@ -285,164 +291,44 @@ class IndApp {
     // Homework
     //------------------------------------------------------------------------------------------------------------------
 
-    // read data
-    val region = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_region.csv")
-      .as[(String, String, String)]
+    val files = getListOfFiles(path)
 
-    val nation = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_nation.csv")
-      .as[(String, String, String, String)]
+    val cells = ListBuffer[(String, Seq[String])]()
+    val broadcastCells = spark.sparkContext.broadcast(cells)
 
-    val customer = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_customer.csv")
-      .as[(String, String, String, String, String, String, String, String)]
+    files.map(file =>
+      spark.read
+        .option("inferSchema", "true")
+        .option("header", "true")
+        .option("sep", ";")
+        .csv(s"$file")
+    )
 
-    val lineitem = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_lineitem.csv")
-      .as[(String, String, String, String, String, String, String, String,
-      String, String, String, String, String, String, String, String)]
+    .foreach(dataSet => {
+      val columnNames = dataSet.columns
 
-    val part = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_part.csv")
-      .as[(String, String, String, String, String, String, String, String, String)]
+      dataSet.foreach(row => {
+        for (i <- 0 until row.length) {
+          val newTuple: (String, Seq[String]) = (String.valueOf(row.get(i)), Seq(columnNames(i)))
+          broadcastCells.value += newTuple
+        }
+      })
+    })
 
-    val supplier = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_supplier.csv")
-      .as[(String, String, String, String, String, String, String)]
+    broadcastCells.destroy
 
-    val orders = spark.read
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .option("sep", ";")
-      .csv(s"$path/tpch_orders.csv")
-      .as[(String, String, String, String, String, String, String, String, String)]
+    println(cells.size)
 
-    val nation_cols = nation.columns
-    val region_cols = region.columns
-    val customer_cols = customer.columns
-    val lineitem_cols = lineitem.columns
-    val part_cols = part.columns
-    val supplier_cols = supplier.columns
-    val orders_cols = orders.columns
-
-    val customer_tuples = customer
-      .flatMap(tuple2 =>
-        Seq(
-          tuple2._1->Seq(customer_cols(0)),
-          tuple2._2->Seq(customer_cols(1)),
-          tuple2._3->Seq(customer_cols(2)),
-          tuple2._4->Seq(customer_cols(3)),
-          tuple2._5->Seq(customer_cols(4)),
-          tuple2._6->Seq(customer_cols(5)),
-          tuple2._7->Seq(customer_cols(6)),
-          tuple2._8->Seq(customer_cols(7)))
-      )
-
-    val supplier_tuples = supplier
-      .flatMap(tuple2 =>
-        Seq(
-          tuple2._1->Seq(supplier_cols(0)),
-          tuple2._2->Seq(supplier_cols(1)),
-          tuple2._3->Seq(supplier_cols(2)),
-          tuple2._4->Seq(supplier_cols(3)),
-          tuple2._5->Seq(supplier_cols(4)),
-          tuple2._6->Seq(supplier_cols(5)),
-          tuple2._7->Seq(supplier_cols(6)))
-      )
-
-    val part_tuples = part
-      .flatMap(tuple2 =>
-        Seq(
-          tuple2._1->Seq(part_cols(0)),
-          tuple2._2->Seq(part_cols(1)),
-          tuple2._3->Seq(part_cols(2)),
-          tuple2._4->Seq(part_cols(3)),
-          tuple2._5->Seq(part_cols(4)),
-          tuple2._6->Seq(part_cols(5)),
-          tuple2._7->Seq(part_cols(6)),
-          tuple2._8->Seq(part_cols(7)),
-          tuple2._9->Seq(part_cols(8)))
-      )
-
-    val orders_tuples = orders
-      .flatMap(tuple2 =>
-        Seq(
-          tuple2._1->Seq(orders_cols(0)),
-          tuple2._2->Seq(orders_cols(1)),
-          tuple2._3->Seq(orders_cols(2)),
-          tuple2._4->Seq(orders_cols(3)),
-          tuple2._5->Seq(orders_cols(4)),
-          tuple2._6->Seq(orders_cols(5)),
-          tuple2._7->Seq(orders_cols(6)),
-          tuple2._8->Seq(orders_cols(7)),
-          tuple2._9->Seq(orders_cols(8)))
-      )
-
-    val lineitem_tuples = lineitem
-      .flatMap(tuple2 =>
-        Seq(
-          tuple2._1->Seq(lineitem_cols(0)),
-          tuple2._2->Seq(lineitem_cols(1)),
-          tuple2._3->Seq(lineitem_cols(2)),
-          tuple2._4->Seq(lineitem_cols(3)),
-          tuple2._5->Seq(lineitem_cols(4)),
-          tuple2._6->Seq(lineitem_cols(5)),
-          tuple2._7->Seq(lineitem_cols(6)),
-          tuple2._8->Seq(lineitem_cols(7)),
-          tuple2._9->Seq(lineitem_cols(8)),
-          tuple2._10->Seq(lineitem_cols(9)),
-          tuple2._11->Seq(lineitem_cols(10)),
-          tuple2._12->Seq(lineitem_cols(11)),
-          tuple2._13->Seq(lineitem_cols(12)),
-          tuple2._14->Seq(lineitem_cols(13)),
-          tuple2._15->Seq(lineitem_cols(14)),
-          tuple2._16->Seq(lineitem_cols(15)))
-      )
-
-    val region_tuples = region
-      .flatMap(tuple2 =>
-        Seq(
-          tuple2._1->Seq(region_cols(0)),
-          tuple2._2->Seq(region_cols(1)),
-          tuple2._3->Seq(region_cols(2)))
-      )
-
-    ((((((nation
-      // split records, create cells
-      .flatMap(tuple1 =>
-        Seq(
-          tuple1._1->Seq(nation_cols(0)),
-          tuple1._2->Seq(nation_cols(1)),
-          tuple1._3->Seq(nation_cols(2)),
-          tuple1._4->Seq(nation_cols(3)))
-      ) union region_tuples) union customer_tuples) union lineitem_tuples) union orders_tuples)
-      union part_tuples) union supplier_tuples)
+    spark.sparkContext.parallelize(cells)
+      .toDS()
 
       // preaggregation, concat column title for same value
       .groupByKey(value => value._1)
       .reduceGroups((cell1, cell2) => (cell1._1, cell1._2 ++ cell2._2))
       .map(_._2)
       .map(pair => (pair._1, pair._2.distinct))
-      // TODO partition / distribute .repartition() ?
+
+      // redistribute?
 
       // generate attribute sets
       .groupByKey(value => value._1)
@@ -468,12 +354,19 @@ class IndApp {
       .filter(_._2.nonEmpty)
 
       // split into INDs
-      .foreach(pair => {
-        println(pair._1 + " < " + pair._2.mkString(", "))
-      })
-
-      // return output
+        .show()
+//      .foreach(pair => {
+//        println(pair._1 + " < " + pair._2.mkString(", "))
+//      })
 
   }
 
+  private def getListOfFiles(dir: String):List[File] = {
+    val d = new File(dir)
+    if (d.exists && d.isDirectory) {
+      d.listFiles.filter(_.isFile).toList
+    } else {
+      List[File]()
+    }
+  }
 }
