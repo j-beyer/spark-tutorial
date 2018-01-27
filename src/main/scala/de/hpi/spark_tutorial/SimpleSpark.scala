@@ -281,42 +281,152 @@ object SimpleSpark extends App {
       .option("inferSchema", "true")
       .option("header", "true")
       .option("sep", ";")
-      .csv("data/tpch_region.csv")
+      .csv("TPCH/tpch_region.csv")
       .as[(String, String, String)]
 
     val nation = spark.read
       .option("inferSchema", "true")
       .option("header", "true")
       .option("sep", ";")
-      .csv("data/tpch_nation.csv")
+      .csv("TPCH/tpch_nation.csv")
       .as[(String, String, String, String)]
 
-    val regionkey = region.columns(0)
-    val name = region.columns(1)
-    val comment = region.columns(2)
+    val customer = spark.read
+      .option("inferSchema", "true")
+      .option("header", "true")
+      .option("sep", ";")
+      .csv("TPCH/tpch_customer.csv")
+      .as[(String, String, String, String, String, String, String, String)]
 
-    val nation_nationkey = nation.columns(0)
-    val nation_name = nation.columns(1)
-    val nation_regionkey = nation.columns(2)
-    val nation_comment = nation.columns(3)
+    val lineitem = spark.read
+      .option("inferSchema", "true")
+      .option("header", "true")
+      .option("sep", ";")
+      .csv("TPCH/tpch_lineitem.csv")
+      .as[(String, String, String, String, String, String, String, String,
+      String, String, String, String, String, String, String, String)]
+
+    val part = spark.read
+      .option("inferSchema", "true")
+      .option("header", "true")
+      .option("sep", ";")
+      .csv("TPCH/tpch_part.csv")
+      .as[(String, String, String, String, String, String, String, String, String)]
+
+    val supplier = spark.read
+      .option("inferSchema", "true")
+      .option("header", "true")
+      .option("sep", ";")
+      .csv("TPCH/tpch_supplier.csv")
+      .as[(String, String, String, String, String, String, String)]
+
+    val orders = spark.read
+      .option("inferSchema", "true")
+      .option("header", "true")
+      .option("sep", ";")
+      .csv("TPCH/tpch_orders.csv")
+      .as[(String, String, String, String, String, String, String, String, String)]
+
+    val nation_cols = nation.columns
+    val region_cols = region.columns
+    val customer_cols = customer.columns
+    val lineitem_cols = lineitem.columns
+    val part_cols = part.columns
+    val supplier_cols = supplier.columns
+    val orders_cols = orders.columns
+
+    val customer_tuples = customer
+      .flatMap(tuple2 =>
+        Seq(
+          tuple2._1->Seq(customer_cols(0)),
+          tuple2._2->Seq(customer_cols(1)),
+          tuple2._3->Seq(customer_cols(2)),
+          tuple2._4->Seq(customer_cols(3)),
+          tuple2._5->Seq(customer_cols(4)),
+          tuple2._6->Seq(customer_cols(5)),
+          tuple2._7->Seq(customer_cols(6)),
+          tuple2._8->Seq(customer_cols(7)))
+      )
+
+    val supplier_tuples = supplier
+      .flatMap(tuple2 =>
+        Seq(
+          tuple2._1->Seq(supplier_cols(0)),
+          tuple2._2->Seq(supplier_cols(1)),
+          tuple2._3->Seq(supplier_cols(2)),
+          tuple2._4->Seq(supplier_cols(3)),
+          tuple2._5->Seq(supplier_cols(4)),
+          tuple2._6->Seq(supplier_cols(5)),
+          tuple2._7->Seq(supplier_cols(6)))
+      )
+
+    val part_tuples = part
+      .flatMap(tuple2 =>
+        Seq(
+          tuple2._1->Seq(part_cols(0)),
+          tuple2._2->Seq(part_cols(1)),
+          tuple2._3->Seq(part_cols(2)),
+          tuple2._4->Seq(part_cols(3)),
+          tuple2._5->Seq(part_cols(4)),
+          tuple2._6->Seq(part_cols(5)),
+          tuple2._7->Seq(part_cols(6)),
+          tuple2._8->Seq(part_cols(7)),
+          tuple2._9->Seq(part_cols(8)))
+      )
+
+    val orders_tuples = orders
+      .flatMap(tuple2 =>
+        Seq(
+          tuple2._1->Seq(orders_cols(0)),
+          tuple2._2->Seq(orders_cols(1)),
+          tuple2._3->Seq(orders_cols(2)),
+          tuple2._4->Seq(orders_cols(3)),
+          tuple2._5->Seq(orders_cols(4)),
+          tuple2._6->Seq(orders_cols(5)),
+          tuple2._7->Seq(orders_cols(6)),
+          tuple2._8->Seq(orders_cols(7)),
+          tuple2._9->Seq(orders_cols(8)))
+      )
+
+    val lineitem_tuples = lineitem
+      .flatMap(tuple2 =>
+        Seq(
+          tuple2._1->Seq(lineitem_cols(0)),
+          tuple2._2->Seq(lineitem_cols(1)),
+          tuple2._3->Seq(lineitem_cols(2)),
+          tuple2._4->Seq(lineitem_cols(3)),
+          tuple2._5->Seq(lineitem_cols(4)),
+          tuple2._6->Seq(lineitem_cols(5)),
+          tuple2._7->Seq(lineitem_cols(6)),
+          tuple2._8->Seq(lineitem_cols(7)),
+          tuple2._9->Seq(lineitem_cols(8)),
+          tuple2._10->Seq(lineitem_cols(9)),
+          tuple2._11->Seq(lineitem_cols(10)),
+          tuple2._12->Seq(lineitem_cols(11)),
+          tuple2._13->Seq(lineitem_cols(12)),
+          tuple2._14->Seq(lineitem_cols(13)),
+          tuple2._15->Seq(lineitem_cols(14)),
+          tuple2._16->Seq(lineitem_cols(15)))
+      )
 
     val region_tuples = region
       .flatMap(tuple2 =>
         Seq(
-          tuple2._1->Seq(regionkey),
-          tuple2._2->Seq(name),
-          tuple2._3->Seq(comment))
+          tuple2._1->Seq(region_cols(0)),
+          tuple2._2->Seq(region_cols(1)),
+          tuple2._3->Seq(region_cols(2)))
       )
 
-    (nation
+    ((((((nation
       // split records, create cells
       .flatMap(tuple1 =>
         Seq(
-          tuple1._1->Seq(nation_nationkey),
-          tuple1._2->Seq(nation_name),
-          tuple1._3->Seq(nation_regionkey),
-          tuple1._4->Seq(nation_comment))
-      ) union region_tuples)
+          tuple1._1->Seq(nation_cols(0)),
+          tuple1._2->Seq(nation_cols(1)),
+          tuple1._3->Seq(nation_cols(2)),
+          tuple1._4->Seq(nation_cols(3)))
+      ) union region_tuples) union customer_tuples) union lineitem_tuples) union orders_tuples)
+      union part_tuples) union supplier_tuples)
 
       // preaggregation, concat column title for same value
       .groupByKey(value => value._1)
