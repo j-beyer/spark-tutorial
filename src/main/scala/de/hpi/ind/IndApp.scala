@@ -1,4 +1,4 @@
-package de.hpi.spark_tutorial
+package de.hpi.ind
 
 import java.io.File
 
